@@ -217,5 +217,82 @@ def get_sql_table_info(table_name: str, database: str, cols: Optional[List[str]]
     return result
 
 
+@mcp.tool(name="run_sql")
+def run_sql(sql_list: List[str], database: str, fetch_results: bool = True):
+    """
+    执行一个包含多条SQL语句的列表
+
+    Args:
+        sql_list: 包含SQL语句的列表
+        database: 数据库名称
+        fetch_results: 是否获取查询结果，默认为True
+
+    Returns:
+        Dict[str, Any]: 包含以下键的字典:
+            - "results": 结果列表，每个元素对应一条SQL语句的执行结果
+            - "errors": 错误信息列表，与SQL语句一一对应
+            - "status": 执行状态，"success"或"error"
+    """
+    results = []
+    errors = []
+    status = "success"
+
+    # 连接MySQL数据库
+    try:
+        conn = _connection(database_name=database)
+        cursor = conn.cursor(DictCursor)  # 使用DictCursor，返回字典形式的结果
+
+        # 执行每条SQL语句
+        for i, sql in enumerate(sql_list):
+            try:
+                cursor.execute(sql)
+
+                # 如果是SELECT语句并且需要获取结果
+                if fetch_results and sql.strip().upper().startswith("SELECT"):
+                    result = cursor.fetchall()
+                    results.append(result)
+                else:
+                    # 对于非SELECT语句，返回受影响的行数
+                    results.append({"affected_rows": cursor.rowcount})
+
+                # 成功执行，对应位置的错误为None
+                errors.append(None)
+
+            except pymysql.Error as e:
+                # 记录错误信息
+                error_msg = f"SQL语句错误(索引 {i}): {str(e)}"
+                errors.append(error_msg)
+                results.append(None)
+                status = "error"
+
+        # 提交事务
+        conn.commit()
+
+    except pymysql.Error as e:
+        # 处理连接错误
+        error_msg = f"MySQL连接错误: {str(e)}"
+        errors = [error_msg] * len(sql_list)
+        results = [None] * len(sql_list)
+        status = "error"
+
+        # 如果连接已建立，回滚事务
+        if 'conn' in locals():
+            conn.rollback()
+
+    finally:
+        # 关闭数据库连接
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+    # 返回包含结果和错误信息的字典
+    return {
+        "results": results,
+        "errors": errors,
+        "status": status
+    }
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")
