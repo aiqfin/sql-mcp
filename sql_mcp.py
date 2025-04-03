@@ -32,6 +32,73 @@ def _connection(database_name=None):
     return connection
 
 
+@mcp.tool(name="get_mysql_schema")
+def get_mysql_schema(db_name_list=None) -> dict:
+    """Retrieve complete MySQL schema structure including column comments.
+
+    Fetches database, table and column information with comments in a nested dictionary structure.
+    If no database names are provided, retrieves all accessible databases.
+
+    Args:
+        db_name_list (list|None): List of database names to inspect. If None, fetches all databases.
+
+    Returns:
+        dict: Nested dictionary with structure:
+            {
+                "database1": {
+                    "table1": {
+                        "col1": "column comment",
+                        "col2": "column comment"
+                    },
+                    "table2": {...}
+                },
+                "database2": {...}
+            }
+
+    Notes:
+        - Column comments will be empty strings if not set in the database
+        - Table and column names preserve original case
+        - Returns empty dictionaries for databases without access permissions
+
+    Example:
+        >>> schema = get_mysql_schema(['inventory', 'orders'])
+        >>> schema['inventory']['products']['product_id']
+        'Primary key identifier'
+    """
+    connection = _connection()
+    result = {}
+    cursor = connection.cursor()
+
+    databases = []
+    if db_name_list is None:
+        cursor.execute("SHOW DATABASES")
+        databases = cursor.fetchall()
+    else:
+        for db_name in db_name_list:
+            databases.append({"Database": db_name})
+
+    for database in databases:
+        db_name = database["Database"]
+        result[db_name] = {}
+        cursor.execute(f"USE {db_name}")
+        cursor.execute("SHOW TABLES")
+        tables = cursor.fetchall()
+        for table in tables:
+            table_name = table["Tables_in_" + db_name]
+            result[db_name][table_name] = {}
+            cursor.execute(f"""
+                SELECT COLUMN_NAME, COLUMN_COMMENT
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = '{db_name}' AND TABLE_NAME = '{table_name}'
+                ORDER BY ORDINAL_POSITION
+            """)
+            columns_info = cursor.fetchall()
+            for column_info in columns_info:
+                result[db_name][table_name][column_info["COLUMN_NAME"]] = column_info["COLUMN_COMMENT"]
+    cursor.close()
+    return result
+
+
 @mcp.tool(name="test_connection")
 def test_connection(database=None, source: str = _source) -> bool:
     """
