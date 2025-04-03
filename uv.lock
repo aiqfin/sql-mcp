@@ -1600,7 +1600,7 @@ wheels = [
 ]
 
 [[package]]
-name = "stata-mcp"
+name = "sql-mcp"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
