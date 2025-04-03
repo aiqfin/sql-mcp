@@ -34,36 +34,50 @@ def _connection(database_name=None):
 
 @mcp.tool(name="get_mysql_schema")
 def get_mysql_schema(db_name_list=None) -> dict:
-    """Retrieve complete MySQL schema structure including column comments.
+    """
+    Retrieves the complete schema structure from MySQL databases including column comments.
 
-    Fetches database, table and column information with comments in a nested dictionary structure.
-    If no database names are provided, retrieves all accessible databases.
+    This function provides a hierarchical view of database structures, returning tables and their columns
+    with associated comments. The result is organized as a nested dictionary for easy navigation.
 
     Args:
-        db_name_list (list|None): List of database names to inspect. If None, fetches all databases.
+        db_name_list (list|None): Optional list of specific database names to inspect.
+            - If provided: Only these databases will be queried
+            - If None (default): All accessible databases will be included
+            - Example: ['inventory', 'customers']
 
     Returns:
-        dict: Nested dictionary with structure:
+        dict: A nested dictionary structure representing the database schema:
             {
-                "database1": {
-                    "table1": {
-                        "col1": "column comment",
-                        "col2": "column comment"
+                "database_name": {
+                    "table_name": {
+                        "column_name": "column_comment",
+                        ...
                     },
-                    "table2": {...}
+                    ...
                 },
-                "database2": {...}
+                ...
             }
+            - Databases without accessible tables will appear as empty dictionaries
+            - Column comments are empty strings when not defined in the database
 
     Notes:
-        - Column comments will be empty strings if not set in the database
-        - Table and column names preserve original case
-        - Returns empty dictionaries for databases without access permissions
+        Important characteristics of the returned data:
+        - Case Sensitivity: Preserves the original case of database, table, and column names
+        - Missing Comments: Returns empty string ('') for columns without comments
+        - Access Restrictions: Databases without proper permissions will return empty
+        - Ordering: Columns are returned in their ordinal position (as defined in the table)
 
     Example:
-        >>> schema = get_mysql_schema(['inventory', 'orders'])
-        >>> schema['inventory']['products']['product_id']
-        'Primary key identifier'
+        # Get schema for specific databases
+        >>> schema = get_mysql_schema(['hr', 'finance'])
+        >>> schema['hr']['employees']['employee_id']
+        'Unique staff identifier'
+
+        # Get schema for all accessible databases
+        >>> full_schema = get_mysql_schema()
+        >>> 'mysql' in full_schema  # System database
+        True
     """
     connection = _connection()
     result = {}
