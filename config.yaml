@@ -1,0 +1,5 @@
+database:
+  host: 10.0.58.55
+  port: 3306
+  user: dell
+  password: qfml2022
